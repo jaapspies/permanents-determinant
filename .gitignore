@@ -1,0 +1,12 @@
+# Object files
+*.o
+
+# Executables 
+test_suite
+benchmark
+oeis_a089475
+oeis_a089476
+
+# Editor backups
+*~
+*.swp
