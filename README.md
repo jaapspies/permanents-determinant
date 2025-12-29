@@ -12,20 +12,21 @@ The library utilizes **OpenMP** for multithreading and **SIMD** instructions for
 
 ## Features & Algorithms
 
-* **Fast Permanent Calculation (Square):**
+* **Fast Permanent Calculation:**
     * Implementation of **Spies' Formula** using Gray Codes.
+    * Function call: double permanent(const int8_t *A, int m, int n);
     * Optimized for dense matrices ($m \approx n$).
     * Complexity: $O(n 2^n)$.
 * **Fast Permanent Calculation (Rectangular):**
     * Implementation of the **Ryser/Brualdi Algorithm** (2006 port).
+    * Function call: double permanent_ryser(const int8_t *A, int m, int n);
     * Optimized for rectangular matrices where $m < n$.
     * Complexity: $O(2^m \cdot poly(n))$.
-* **Smart Dispatch:**
-    * The library automatically selects the fastest algorithm (Spies vs. Ryser) based on matrix dimensions.
 * **Exact Determinant:**
     * Implementation of the **Bareiss Algorithm** (fraction-free Gaussian elimination) for exact integer results.
+    * Function call: double determinant(const int8_t *A, int m, int n);
 
-## 🏆 OEIS Results (New for 2025)
+##  OEIS Results (New for 2025)
 
 Using this software, two sequences that had been stagnant since 2003 were extended to $N=7$ on December 28-29, 2025.
 
