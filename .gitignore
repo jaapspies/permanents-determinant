@@ -10,3 +10,10 @@ oeis_a089476
 # Editor backups
 *~
 *.swp
+
+# #results:
+*.txt
+*.csv
+
+# System things
+.DS_Store
