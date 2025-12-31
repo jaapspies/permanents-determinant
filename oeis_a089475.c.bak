@@ -1,0 +1,191 @@
+/*
+ * oeis_a089475.c
+ * * Calculates terms for OEIS Sequence A089475:
+ * "Number of different values taken by the permanent of a real nonsingular (0,1)-matrix of order n."
+ *
+ * Strategy:
+ * - Backtracking with Rank Pruning (using Gaussian elimination with doubles).
+ * - Row Sorting: Enforce row[i] > row[i-1] to eliminate row permutations.
+ * (Nonsingular matrices must have distinct rows).
+ * * Dependencies: permanent.h, permanent.c
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+#include <math.h>
+#include <omp.h>
+#include "permanent.h"
+
+#define N 6
+// Max permanent for N=7 is 5040 (7!). Ensure this covers the range.
+#define MAX_PERM 5040 
+
+// Global tracking
+bool found_values[MAX_PERM + 1];
+long long total_nonsingular_found = 0;
+
+// --- REAL RANK CHECK (Using Doubles) ---
+// Checks if 'new_row_vals' is linearly independent of the current 'basis'.
+// Returns 1 if independent (and updates basis), 0 otherwise.
+int is_independent_real(double *basis, int current_rank, int n_cols, const int8_t *new_row_vals) {
+    double vec[N];
+    for(int i=0; i<n_cols; i++) vec[i] = (double)new_row_vals[i];
+
+    // Gaussian elimination against the basis
+    for(int i=0; i<current_rank; i++) {
+        int pivot_col = -1;
+        // Find pivot in basis row i
+        for(int k=0; k<n_cols; k++) {
+            if (fabs(basis[i*N + k]) > 1e-9) {
+                pivot_col = k;
+                break;
+            }
+        }
+        
+        if (pivot_col != -1 && fabs(vec[pivot_col]) > 1e-9) {
+            double factor = vec[pivot_col] / basis[i*N + pivot_col];
+            for(int k=pivot_col; k<n_cols; k++) {
+                vec[k] -= factor * basis[i*N + k];
+            }
+        }
+    }
+
+    // Check if the vector reduced to zero
+    int pivot_col = -1;
+    for(int k=0; k<n_cols; k++) {
+        if (fabs(vec[k]) > 1e-9) {
+            pivot_col = k;
+            break;
+        }
+    }
+
+    // If not zero, add to basis
+    if (pivot_col != -1) {
+        for(int k=0; k<n_cols; k++) basis[current_rank*N + k] = vec[k];
+        return 1;
+    }
+    return 0; // Dependent
+}
+
+// --- RECURSIVE SEARCH ---
+void dfs(int row_idx, double *basis, int8_t *matrix_flat, int start_val) {
+    // Base case: Matrix is full (N rows)
+// Base case: Matrix is full (N rows)
+    if (row_idx == N) {
+        
+        // --- DE POORTWACHTER ---
+        // We roepen de Bareiss-functie aan die u in de header vond.
+        // Hij geeft een double terug, maar berekent exact.
+        // Een nonsinguliere matrix heeft determinant != 0 (dus >= 1 of <= -1).
+        double det = determinant(matrix_flat, N);
+
+        // We checken veilig of de absolute waarde groter is dan 0.5
+        // (Dit vangt alles op wat geen 0 is, zonder gedoe met afronding rond de 0)
+        if (fabs(det) > 0.5) {
+            
+            // Hij is veilig! Bereken nu pas de permanent.
+            // Let op: uw permanent functie wil (A, m, n), dus (matrix_flat, N, N)
+            double p = permanent(matrix_flat, N, N); 
+            
+            int p_int = (int)(p + 0.5); // Afronden naar integer
+
+            #pragma omp critical
+            {
+                if (p_int >= 0 && p_int <= MAX_PERM) {
+                    found_values[p_int] = true;
+                }
+                total_nonsingular_found++;
+            }
+        }
+        return;
+    }
+
+    int max_val = (1 << N);
+    
+    // Buffers for next recursion step
+    double next_basis[N * N];
+    int8_t row_vals[N];
+
+    // SYMMETRY BREAKING: Iterate starting from 'start_val'
+    // Enforces strict ordering: Row[i] > Row[i-1]
+    for (int val = start_val; val < max_val; val++) {
+        
+        // Convert integer 'val' to row array
+        for (int b = 0; b < N; b++) row_vals[b] = (val >> b) & 1;
+
+        // Copy current basis
+        memcpy(next_basis, basis, N * N * sizeof(double));
+
+        // PRUNING: Only recurse if the new row increases the rank
+        if (is_independent_real(next_basis, row_idx, N, row_vals)) {
+            
+            // Write to matrix buffer
+            for(int b=0; b<N; b++) matrix_flat[row_idx*N + b] = row_vals[b];
+            
+            // Recurse (start_val = val + 1 for strict ordering)
+            dfs(row_idx + 1, next_basis, matrix_flat, val + 1);
+        }
+    }
+}
+
+int main() {
+    printf("--- OEIS Searcher A089475 (Nonsingular) for N=%d ---\n", N);
+    printf("Strategy: Real Rank Pruning + Row Sorting (Strict)\n");
+
+    for(int i=0; i<=MAX_PERM; i++) found_values[i] = false;
+    double start_time = omp_get_wtime();
+    int max_val = (1 << N);
+    
+    // Limit for Row 0 (optimization based on sorted rows)
+    int limit_row_0 = max_val - N + 1;
+    int rows_processed = 0;
+
+    printf("Starting search over approx %d top-level row candidates...\n", limit_row_0);
+
+    #pragma omp parallel 
+    {
+        double t_basis[N * N];
+        int8_t t_matrix[N * N];
+
+        #pragma omp for schedule(dynamic, 1)
+        for (int val = 1; val < limit_row_0; val++) {
+            // Setup Row 0
+            memset(t_matrix, 0, N*N*sizeof(int8_t));
+            memset(t_basis, 0, N*N*sizeof(double));
+
+            for (int b = 0; b < N; b++) t_matrix[0*N + b] = (val >> b) & 1;
+            for (int b = 0; b < N; b++) t_basis[0*N + b] = (double)t_matrix[b];
+
+            // Dive into recursion
+            dfs(1, t_basis, t_matrix, val + 1);
+
+            #pragma omp critical
+            {
+                rows_processed++;
+                fprintf(stderr, "\rProgress: Row 0 val %d / %d done. (Found so far: %lld)", 
+                        val, limit_row_0 - 1, total_nonsingular_found);
+            }
+        }
+    }
+
+    double end_time = omp_get_wtime();
+    
+    int count = 0;
+    printf("\n\n--- Results ---\n");
+    printf("Values found: ");
+    for (int i = 0; i <= MAX_PERM; i++) {
+        if (found_values[i]) {
+            count++;
+            printf("%d ", i);
+        }
+    }
+    printf("\n");
+    printf("Total distinct values (A089475): %d\n", count);
+    printf("Matrices checked (Unique Row Sets): %lld\n", total_nonsingular_found);
+    printf("Time elapsed: %.4f seconds\n", end_time - start_time);
+
+    return 0;
+}

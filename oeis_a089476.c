@@ -18,9 +18,10 @@
 #include <stdbool.h>
 #include <string.h>
 #include <omp.h>
+#include <math.h>
 #include "permanent.h"
 
-#define N 7
+#define N 6
 #define MAX_PERM 5040 
 
 // Global tracking
@@ -32,19 +33,21 @@ long long total_singular_found = 0;
 // start_val: minimum integer value for this row (enforcing row[i] >= row[i-1])
 // matrix_flat: buffer
 void dfs(int row_idx, int start_val, int8_t *matrix_flat) {
-    
-    // Base Case: Matrix is full
+ // Base Case: Matrix is full
     if (row_idx == N) {
         
         // 1. Exact Determinant Check (Bareiss)
+        // The function returns a double, but the result is mathematically an exact integer.
         double det = determinant(matrix_flat, N);
         
-        // If determinant is 0 (Singular)
-        if (det == 0.0) { 
+        // 2. Check for Singularity (Determinant == 0)
+        // We check if the absolute value is less than 0.5. 
+        // Since the determinant is an integer, this safely isolates 0.
+        if (fabs(det) < 0.5) { 
             
-            // 2. Calculate Permanent
+            // 3. Calculate Permanent
             double p = permanent(matrix_flat, N, N);
-            int p_int = (int)(p + 0.5);
+            int p_int = (int)(p + 0.5); // Round to nearest integer
 
             #pragma omp critical
             {
@@ -55,8 +58,7 @@ void dfs(int row_idx, int start_val, int8_t *matrix_flat) {
             }
         }
         return;
-    }
-
+    }   
     // --- GENERATION ---
     // Iterate from start_val to 2^N - 1
     int max_val = (1 << N);
@@ -113,11 +115,11 @@ int main() {
     
     int count = 0;
     printf("\n\n--- Results ---\n");
-    // printf("Values found (A089476): ");
+    printf("Values found (A089476): ");
     for (int i = 0; i <= MAX_PERM; i++) {
         if (found_values[i]) {
             count++;
-            // printf("%d ", i); 
+            printf("%d ", i); 
         }
     }
     printf("\n");
