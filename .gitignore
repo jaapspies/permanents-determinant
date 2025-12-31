@@ -4,8 +4,13 @@
 # Executables 
 test_suite
 benchmark
+test_bug
 oeis_a089475
 oeis_a089476
+
+# Temorary source files
+benchmark.c
+test_bug.c
 
 # Editor backups
 *~
