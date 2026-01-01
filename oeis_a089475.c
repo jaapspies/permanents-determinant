@@ -17,7 +17,7 @@
 #include <omp.h>
 #include "permanent.h"
 
-#define N 6
+#define N 7
 #define MAX_PERM 5040 
 #define EPSILON 1e-9
 
@@ -172,7 +172,7 @@ int main() {
 
     // Results printing
     int count = 0;
-    FILE *fp = fopen("results_nonsingular.csv", "w");
+    FILE *fp = fopen("results_nonsingular_7.csv", "w");
     
     printf("\nValues found: ");
     for (int i = 0; i <= MAX_PERM; i++) {
@@ -186,7 +186,7 @@ int main() {
     
     if(fp) {
         fclose(fp);
-        printf("CSV written to results_nonsingular.csv\n");
+        printf("CSV written to results_nonsingular_7.csv\n");
     }
     
     printf("Total distinct values: %d\n", count);
