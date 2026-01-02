@@ -15,16 +15,27 @@ The library utilizes **OpenMP** for multithreading and **SIMD** instructions for
 * **Fast Permanent Calculation:**
     * Implementation of the **Spies' Formula** using Gray Codes.
     * Function call: double permanent(const int8_t *A, int m, int n);
+    * Padding rows to match columns (Masschelein).
     * Optimized for dense matrices ($m \approx n$).
     * Complexity: $O(n 2^n)$.
+
 * **Fast Permanent Calculation (Rectangular):**
-    * Implementation of the **Ryser/Brualdi Algorithm** (2006 port).
+    * Implementation of the **Brualdi–Ryser Algorithm** for rectangular permanents.
+    * Legacy reference implementation (2006 port).
     * Function call: double permanent_ryser(const int8_t *A, int m, int n);
     * Optimized for rectangular matrices where $m < n$.
     * Complexity: $O(2^m \cdot poly(n))$.
+
+* **Fast Permanent Calculation (Rectangular, Optimized):**
+    * Optimized implementation of the **Brualdi–Ryser Algorithm** using **Gray-code traversal**
+      and incremental row-sum updates.
+    * Function call: double ryser_new(const int8_t *A, int m, int n);
+    * Produces identical results to `permanent_ryser`, but with significantly lower constant factors.
+    * Recommended Ryser-based method for rectangular matrices.
+
 * **Exact Determinant:**
     * Implementation of the **Bareiss Algorithm** (fraction-free Gaussian elimination) for exact integer results.
-    * Function call: double determinant(const int8_t *A, int m, int n);
+    * Function call: double determinant(const int8_t *A, int n);
 
 ##  OEIS Results (New for 2025)
 

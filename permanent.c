@@ -257,3 +257,79 @@ double permanent_ryser(const int8_t *A, int m, int n) {
     
     return total_sum;
 }
+
+
+// 4.  Ryser's Algorithm (Rectangular m x n)
+// ryser_new(A, m, n): optimized Brualdi–Ryser implementation for the permanent (m <= n).
+//
+// Uses Gray-code traversal of all subsets S ⊆ {1..n}. Maintain row sums
+//   s_i(S) = Σ_{j∈S} a_{i,j}
+// incrementally when one column toggles.
+//
+// Rectangular (injective) weighting (Brualdi–Ryser):
+// For k = |S|, contribution weight is
+//   w(k) = (-1)^(m-k) * C(n-k, m-k)   for k <= m, else 0.
+// For m=n this reduces to the usual square Ryser weight (-1)^(n-k).
+
+static inline int popcount_u64(uint64_t x) {
+    return __builtin_popcountll(x);
+}
+static inline double binom_int(int n, int k) {
+    if (k < 0 || k > n) return 0.0;
+    if (k == 0 || k == n) return 1.0;
+    if (k > n - k) k = n - k;
+    double r = 1.0;
+    for (int i = 1; i <= k; i++) r = r * (n - i + 1) / i;
+    return r;
+}
+
+double ryser_new(const int8_t *A, int m, int n) {
+    if (m < 0 || n < 0) return 0.0;
+    if (m == 0) return 1.0;
+    if (m > n) return 0.0;
+    if (!A) return 0.0;
+
+    if (n == 0) return 0.0;
+    if (n > 62) return 0.0;   // shifts safe; praktisch sowieso onhaalbaar
+
+    int64_t *row_sums = (int64_t*)calloc((size_t)m, sizeof(int64_t));
+    if (!row_sums) return 0.0;
+
+    double total = 0.0;
+
+    uint64_t old_gray = 0;
+    uint64_t limit = 1ULL << n;
+
+    // Loop over all non-empty subsets via Gray code
+    for (uint64_t i = 1; i < limit; i++) {
+        uint64_t gray = i ^ (i >> 1);
+        uint64_t bit  = gray ^ old_gray;
+        int col = __builtin_ctzll(bit);          // changed column 0..n-1
+        int turned_on = (gray & bit) != 0;
+        int64_t delta = turned_on ? 1 : -1;
+
+        // Update row sums: add/subtract column 'col'
+        for (int r = 0; r < m; r++) {
+            row_sums[r] += delta * (int64_t)A[(size_t)r * (size_t)n + (size_t)col];
+        }
+
+        int k = __builtin_popcountll(gray);      // |S|
+        if (k <= m) {
+            // Weight for rectangular Ryser (matches your 2006 port):
+            // coeff(k) = (-1)^(m-k) * C(n-k, m-k)
+            double w = binom_int(n - k, m - k);
+            if (((m - k) & 1) != 0) w = -w;
+
+            int64_t prod = 1;
+            for (int r = 0; r < m; r++) prod *= row_sums[r];
+
+            total += w * (double)prod;
+        }
+
+        old_gray = gray;
+    }
+
+    free(row_sums);
+    return total;
+}
+
