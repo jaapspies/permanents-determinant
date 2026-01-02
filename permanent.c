@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <omp.h>
+#ifdef _OPENMP
+#  include <omp.h>
+#endif
 #include "permanent.h"
 
 // --- INTERNAL HELPERS ---
@@ -34,6 +36,12 @@ static double binomial(int n, int k) {
 // drastically improving cache performance and enabling SIMD vectorization.
 
 static double fast_permanent_kernel(const int8_t *matrix_transposed, int n) {
+    // Guard against undefined behavior and degenerate cases
+    if (n < 0) return 0.0;
+    if (n == 0) return 1.0;
+    // 1ULL << (n-1) is undefined for (n-1) >= 64 on typical platforms
+    if (n > 63) return 0.0;
+
     double total = 0;
     
     // Row sums of A are Column sums of A^T.
@@ -82,6 +90,11 @@ static double fast_permanent_kernel(const int8_t *matrix_transposed, int n) {
 // 1. Permanent Calculation
 // Strict definition: if m > n, result is 0.
 double permanent(const int8_t *A, int m, int n) {
+    // Basic input validation
+    if (m < 0 || n < 0) return 0.0;
+    if (m == 0) return 1.0;                 // 0 x n: empty product convention
+    if (!A) return 0.0;                     // avoid NULL deref for non-empty input
+
     // Mathematical definition constraint:
     // Cannot select m distinct columns from n if m > n.
     if (m > n) {
