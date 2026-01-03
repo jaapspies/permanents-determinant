@@ -24,14 +24,16 @@ The library utilizes **OpenMP** for multithreading and **SIMD** instructions for
     * Legacy reference implementation (2006 port).
     * Function call: double permanent_ryser(const int8_t *A, int m, int n);
     * Optimized for rectangular matrices where $m < n$.
-    * Complexity: $O(2^m \cdot poly(n))$.
+    * Complexity: $O(m \cdot \sum_{k=1}^m \binom{n}{k})$. 
+      *(Approximates $O(m \cdot \binom{n}{m})$ for small $m$, and $O(m \cdot 2^n)$ when $m=n$)*.
+
 
 * **Fast Permanent Calculation (Rectangular, Optimized):**
     * Optimized implementation of the **Brualdi–Ryser Algorithm** using **Gray-code traversal**
       and incremental row-sum updates.
     * Function call: double ryser_new(const int8_t *A, int m, int n);
-    * Produces identical results to `permanent_ryser`, but with significantly lower constant factors.
-    * Recommended Ryser-based method for rectangular matrices.
+    * Gray-code traversal over all subsets. Best for matrices where $m \approx n$.
+    * Complexity: $O(m \cdot 2^n)$.
 
 * **Exact Determinant:**
     * Implementation of the **Bareiss Algorithm** (fraction-free Gaussian elimination) for exact integer results.
