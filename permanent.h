@@ -26,7 +26,7 @@ double permanent_ryser(const int8_t *A, int m, int n);
  * Brualdi–Ryser formula (rectangular, m <= n), optimized implementation.
  * Uses Gray-code traversal of subsets and incremental row-sum updates.
  */
-double ryser_new(const int8_t *A, int m, int n);
+
 
 double ryser_new(const int8_t *A, int m, int n);
 

@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include "permanent.h"
 
-/* Als je ryser_new() nog niet in permanent.h hebt gezet, houdt dit de build werkend. */
-double ryser_new(const int8_t *A, int m, int n);
 
 static int failures = 0;
 
@@ -26,12 +24,13 @@ static void check_match3(const char *label, double a, double b, double c) {
     }
 }
 
-/* --- brute force permanent voor héél kleine maten (portable C) --- */
+/* --- brute-force permanent for very small sizes (portable C) --- */
+
 typedef struct {
     const int8_t *A;
     int m, n;
-    int chosen[12];   /* gekozen kolommen (size m) */
-    int pick[12];     /* permutatie van gekozen kolommen (size m) */
+    int chosen[12];   /* chosen columns (size m) */
+    int pick[12];     /* permutation of chosen columns (size m) */
     long long total;
 } BFContext;
 
@@ -71,7 +70,8 @@ static long long perm_bruteforce(const int8_t *A, int m, int n) {
     if (m < 0 || n < 0) return 0;
     if (m == 0) return 1;
     if (m > n) return 0;
-    if (n > 12) return 0; /* buffers zijn fixed */
+    if (n > 12) return 0; /* fixed-size buffers */
+
 
     BFContext ctx;
     ctx.A = A;
@@ -84,8 +84,7 @@ static long long perm_bruteforce(const int8_t *A, int m, int n) {
 
 int main(void) {
     printf("--- Test Suite: Permanent & Determinant ---\n");
-
-    /* Grensgevallen / definities */
+    /* Edge cases / definitions */
     {
         double p00 = permanent(NULL, 0, 0);
         check_eq_d("permanent(0x0)=1", p00, 1.0);
@@ -101,7 +100,7 @@ int main(void) {
         check_eq_d("permanent(m>n)=0", p_mgt, 0.0);
     }
 
-    /* TEST 1: rechthoek 2x3 */
+    /* TEST 1: rectangle 2x3 */
     {
         int8_t B[] = {1, 1, 1,
                       1, 2, 3};

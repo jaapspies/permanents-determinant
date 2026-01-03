@@ -90,7 +90,7 @@ To reproduce the N=7 results, follow these steps.
     ```bash
     ./oeis_a089476
     ```
-    *Estimated time:* ~4.5 hours on a 24-core machine.
+    *Estimated time:* ~4 hours on a 24-core machine.
 
 ### Final Verification (Overlap Check)
 To reproduce the set analysis and confirm the overlap of 409:
@@ -100,7 +100,7 @@ To reproduce the set analysis and confirm the overlap of 409:
    python3 final_check_n7.py
    ```
 
-## Mathematical Consistency Check
+## Consistency Check
 
 ### Verification Logic (N=7)
 We used the known total from sequence **A088672** (Total distinct permanent values) to verify our results.
@@ -120,6 +120,25 @@ Using the Inclusion-Exclusion Principle ($|A \cup B| = |A| + |B| - |A \cap B|$):
 * `oeis_a089475.c`: Specialized searcher for nonsingular matrices (Rank Pruning).
 * `oeis_a089476.c`: Specialized searcher for singular matrices (Determinant Check).
 * `test_suite.c`: Unit tests.
+
+## References
+
+The algorithms and formulas implemented in this library are based on the following mathematical publications and theses:
+
+1.  **Brualdi, R. A., & Ryser, H. J.** (1991). *Combinatorial Matrix Theory*. Cambridge University Press.
+    * *The definitive text on combinatorial matrix theory and the source of the Brualdi-Ryser algorithm for rectangular permanents.*
+
+2.  **Spies, J.** (2006). Dancing School problems. *Nieuw Archief voor Wiskunde*, 5/7, 283–284.
+    * *First publication of the underlying combinatorial principles used in this library, including the first published appearence of Spies' Formula*
+
+3.  **Spies, J.** (2020). A formula for the permanent. *Nieuw Archief voor Wiskunde*, 5/21(1).
+    * *Formal derivation of Spies' Formula for calculating the permanent.*
+
+4.  **Masschelein, C.** (2024). *Efficient Evaluation of Rectangular Matrix Permanents* (Master's Thesis). McMaster University, Hamilton, ON, Canada.
+    * *Source for the rectangular extension (padding) techniques.*
+
+5.  **Wikipedia**. [Permanent (wiskunde)](https://nl.wikipedia.org/wiki/Permanent_(wiskunde)).
+    * *General background on the permanent and standard algorithms (Dutch).*
 
 ## License
 
