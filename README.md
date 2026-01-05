@@ -39,6 +39,33 @@ The library utilizes **OpenMP** for multithreading and **SIMD** instructions for
     * Implementation of the **Bareiss Algorithm** (fraction-free Gaussian elimination) for exact integer results.
     * Function call: double determinant(const int8_t *A, int n);
 
+## Mathematical Formulation
+
+The core algorithm for calculating the permanent in this library is based on the **Spies Formula**, extended for rectangular matrices using the **Masschelein** padding technique.
+
+While the implementation uses bitwise optimizations (Gray codes) and processes the transpose of the matrix for cache efficiency ($A^T$), the underlying mathematical logic is defined as follows.
+
+### The Spies/Masschelein Formula
+
+Let $A$ be an $m \times n$ matrix with $m \le n$. We associate a variable $x_j \in \{-1, 1\}$ with each column $j$ of the matrix. The permanent is calculated by summing over all $2^{n-1}$ vectors $x$ (where $x_1 = 1$ is fixed due to symmetry).
+
+$$
+\text{per}(A) = \frac{1}{(n-m)! \cdot 2^{n-1}} \sum_{\substack{x \in \{-1, 1\}^n \\ x_1=1}} \left[ \left(\prod_{j=1}^n x_j\right) \cdot \underbrace{\left( \prod_{i=1}^m \sum_{j=1}^n a_{i,j} x_j \right)}_{\text{Original Rows}} \cdot \underbrace{\left( \sum_{j=1}^n x_j \right)^{n-m}}_{\text{Virtual (Padded) Rows}} \right]
+$$
+
+#### Derivation of Terms:
+
+1.  **The Variables ($x_j$):** The algorithm iterates through state vectors $x$. In the C implementation, this iteration is optimized using a Gray code sequence to update sums incrementally.
+2.  **Original Rows:** For the first $m$ rows, we compute the product of the weighted row sums.
+3.  **Virtual Rows (Masschelein Extension):** To treat the rectangular matrix as square, $n-m$ rows of ones are virtually appended. The row sum for such a row is simply $\sum x_j$. Since these rows are identical, this results in the term $(\sum x_j)^{n-m}$.
+4.  **Normalization:**
+    * The factor $\frac{1}{(n-m)!}$ corrects for the permutation symmetries introduced by the identical padded rows.
+    * The factor $\frac{1}{2^{n-1}}$ is the standard averaging constant for this class of formulas.
+
+### Implementation Note
+To maximize performance (SIMD vectorization and cache locality), the C library physically stores and processes the **transpose** of the padded matrix. Since $\text{per}(A) = \text{per}(A^T)$, this transformation is mathematically valid but means the code iterates over rows to calculate column sums.
+
+
 ##  OEIS Results (New for 2025)
 
 Using this software, two sequences that had been stagnant since 2003 were extended to $N=7$ on December 28-29, 2025.
