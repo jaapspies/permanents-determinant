@@ -6,9 +6,9 @@
 
 ## Overview
 
-This repository contains a highly optimized C library for calculating the **Permanent** and **Determinant** of (0,1)-matrices and other integer matrices. The primary goal of this software is to extend integer sequences in the **OEIS** (On-Line Encyclopedia of Integer Sequences) related to matrix permanents.
+This repository contains a highly optimized C library for calculating the **Permanent** and **Determinant** of (0,1)-matrices and other integer matrices. One of the goals of this software is to extend integer sequences in the **OEIS** (On-Line Encyclopedia of Integer Sequences) related to matrix permanents.
 
-The library utilizes **OpenMP** for multithreading and **SIMD** instructions for vectorization, allowing it to process billions of matrices per hour on modern hardware.
+The library utilizes **OpenMP** for multithreading and **SIMD** instructions for vectorization, allowing it to process billions of matrices per hour on modern hardware. It includes **Python bindings** for easy integration with NumPy.
 
 ## Features & Algorithms
 
@@ -89,17 +89,46 @@ Using this software, two sequences that had been stagnant since 2003 were extend
 ---
 
 ## Building the Software
-
 ### Requirements
 * GCC (with OpenMP support)
 * Make
+* Python 3 + NumPy (optional, for Python bindings)
 
 ### Compilation
-To build all tools and searchers:
 
+To build the standard C executables (test suite, benchmarks, and OEIS generators):
 ```bash
 make
 ```
+
+To build the **Python Shared Library** (`libpermanent.so`):
+```bash
+make lib
+```
+
+## Python Usage
+
+The library includes a Python wrapper (`permanent_lib.py`) for high-performance calculations directly from NumPy.
+
+1.  Build the library: `make lib`
+2.  Run the example: `python3 example.py`
+3.  Use in your own code:
+
+```python
+import numpy as np
+from permanent_lib import permanent
+
+# Create a random 15x20 matrix with entries {-1, 0, 1}
+A = np.random.randint(-1, 2, size=(15, 20))
+
+# Calculate Permanent
+# Default algorithm is 'padding' (Spies/Masschelein) as it is the fastest.
+p = permanent(A)
+
+print(f"Permanent: {p}")
+```
+
+
 ## Verification Instructions
 
 To reproduce the N=7 results, follow these steps. 
@@ -168,6 +197,7 @@ The algorithms and formulas implemented in this library are based on the followi
 
 5.  **Wikipedia**. [Permanent (wiskunde)](https://nl.wikipedia.org/wiki/Permanent_(wiskunde)).
     * *General background on the permanent and standard algorithms (Dutch).*
+6.  **OEIS A089475 & A089476**.
 
 ## License
 
