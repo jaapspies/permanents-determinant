@@ -1,73 +1,98 @@
 import ctypes
-import numpy as np
 import os
+import numpy as np
+from numpy.ctypeslib import ndpointer
 
 class PermanentLib:
-    """
-    Wrapper class for the high-performance C permanent library.
-    """
-    def __init__(self, lib_path=None):
-        # If no path is provided, look for the library in the same directory as this script
-        if lib_path is None:
-            lib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "libpermanent.so")
+    _instance = None
 
-        if not os.path.exists(lib_path):
-            raise FileNotFoundError(f"Library not found at: {lib_path}. Did you run 'make lib'?")
-        
-        # Load the shared library
-        self.lib = ctypes.CDLL(lib_path)
-        
-        # 1. Configure 'permanent' function (Spies/Masschelein Padding - FASTEST/DEFAULT)
-        # C signature: double permanent(int8_t *A, int m, int n)
-        self.lib.permanent.argtypes = [ctypes.POINTER(ctypes.c_int8), ctypes.c_int, ctypes.c_int]
-        self.lib.permanent.restype = ctypes.c_double
-
-        # 2. Configure 'ryser_new' function (Rectangular Ryser with Gray Code)
-        # C signature: double ryser_new(int8_t *A, int m, int n)
-        self.lib.ryser_new.argtypes = [ctypes.POINTER(ctypes.c_int8), ctypes.c_int, ctypes.c_int]
-        self.lib.ryser_new.restype = ctypes.c_double
-
-    def calculate(self, matrix, algorithm="padding"):
+    def __init__(self, lib_path='./libpermanent.so'):
         """
-        Calculates the permanent of a given numpy matrix.
+        Initialize the library wrapper.
+        Expects a C-library compiled with int64_t return types.
+        """
+        cwd = os.getcwd()
+        full_path = os.path.join(cwd, lib_path)
         
-        Parameters:
-            matrix (np.ndarray): The input matrix (will be converted to int8).
-            algorithm (str): The algorithm to use.
-                             - 'padding' (Default): Spies/Masschelein formula. Fastest in benchmarks.
-                             - 'ryser': Optimized Ryser/Gray code without padding.
+        if not os.path.exists(full_path):
+             raise FileNotFoundError(f"Shared library not found at: {full_path}. Did you run 'make lib'?")
+
+        # Load the shared library
+        self.lib = ctypes.CDLL(full_path)
+
+        # --------------------------------------------------------
+        # TYPE CONFIGURATION (Must match permanent.h int64 version)
+        # --------------------------------------------------------
+        self.c_int64 = ctypes.c_int64
+        self.c_int8 = ctypes.c_int8
+        
+        # Define argument types: [int8 array ptr, int m, int n]
+        arg_types_rect = [
+            ndpointer(self.c_int8, flags="C_CONTIGUOUS"),
+            ctypes.c_int,
+            ctypes.c_int
+        ]
+        
+        # 1. Permanent (Masschelein/Spies)
+        self.lib.permanent.argtypes = arg_types_rect
+        self.lib.permanent.restype = self.c_int64
+
+        # 2. Ryser (Optimized)
+        self.lib.ryser_new.argtypes = arg_types_rect
+        self.lib.ryser_new.restype = self.c_int64
+
+        # 3. Determinant (Bareiss) - Input: [int8 array, int n]
+        self.lib.determinant.argtypes = [
+             ndpointer(self.c_int8, flags="C_CONTIGUOUS"),
+             ctypes.c_int
+        ]
+        self.lib.determinant.restype = self.c_int64
+
+    def permanent(self, matrix, algorithm="padding"):
+        """
+        Calculates the permanent of a matrix.
+        
+        Args:
+            matrix (np.array): Input matrix (int8).
+            algorithm (str): 'padding' (default) or 'ryser'.
         
         Returns:
-            double: The calculated permanent.
+            int: The permanent value.
         """
-        # Ensure input is a numpy array of type int8
-        mat_int8 = np.array(matrix, dtype=np.int8)
-        rows, cols = mat_int8.shape
+        # Ensure input is int8 (crucial for C compatibility)
+        mat_np = np.array(matrix, dtype=np.int8)
         
-        # Get a pointer to the raw data (C-contiguous)
-        c_ptr = mat_int8.ctypes.data_as(ctypes.POINTER(ctypes.c_int8))
-        
-        if algorithm == "padding":
-            # Calls 'double permanent(...)' in C -> Spies/Masschelein implementation
-            return self.lib.permanent(c_ptr, rows, cols)
-        elif algorithm == "ryser":
-            # Calls 'double ryser_new(...)' in C -> Ryser implementation
-            return self.lib.ryser_new(c_ptr, rows, cols)
-        else:
-            raise ValueError(f"Unknown algorithm '{algorithm}'. Choose 'padding' (default) or 'ryser'.")
+        if mat_np.ndim != 2:
+            raise ValueError("Input must be a 2D matrix.")
+            
+        m, n = mat_np.shape
 
-# Singleton instance for easy direct usage
-_inst = None
+        if algorithm == "ryser":
+            return self.lib.ryser_new(mat_np, m, n)
+        elif algorithm == "padding" or algorithm == "default":
+            return self.lib.permanent(mat_np, m, n)
+        else:
+            raise ValueError(f"Unknown algorithm: {algorithm}")
+
+    def determinant(self, matrix):
+        """Calculates exact integer determinant."""
+        mat_np = np.array(matrix, dtype=np.int8)
+        if mat_np.shape[0] != mat_np.shape[1]:
+            raise ValueError("Determinant requires a square matrix.")
+        return self.lib.determinant(mat_np, mat_np.shape[0])
+
+# --- Singleton Helper for direct imports ---
+# This allows 'from permanent_lib import permanent' to work directly
+_default_lib = None
 
 def permanent(matrix, algorithm="padding"):
-    """
-    Calculate the permanent of a matrix.
-    
-    Arguments:
-        matrix: The input numpy array (or list of lists).
-        algorithm: 'padding' (default, fastest) or 'ryser'.
-    """
-    global _inst
-    if _inst is None:
-        _inst = PermanentLib()
-    return _inst.calculate(matrix, algorithm)
+    global _default_lib
+    if _default_lib is None:
+        _default_lib = PermanentLib()
+    return _default_lib.permanent(matrix, algorithm)
+
+def determinant(matrix):
+    global _default_lib
+    if _default_lib is None:
+        _default_lib = PermanentLib()
+    return _default_lib.determinant(matrix)
