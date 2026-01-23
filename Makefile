@@ -1,60 +1,32 @@
-CC = gcc
-# Flags: -fPIC is essential for creating a shared library
-# Added -O3 and -march=native for performance
-CFLAGS = -O3 -march=native -fopenmp -Wall -Wextra -fPIC
+CC      = gcc
+CFLAGS  = -O3 -march=native -fopenmp -Wall -Wextra
+LDFLAGS = -lm
 
-# Source files
-SRC_LIB = permanent.c
-SRC_TEST = test_suite.c
-SRC_BENCH = benchmark.c
-SRC_A089475 = oeis_a089475.c
-SRC_A089476 = oeis_a089476.c
+# Alles bouwen: de library én de tools
+all: lib benchmark oeis_nonsingular oeis_singular test_suite
 
-# Object files
-OBJ_LIB = permanent.o
+# --- 1. Python Library (Shared Object) ---
+# Heeft -fPIC en -shared nodig
+lib: permanent.c permanent.h
+	$(CC) $(CFLAGS) -fPIC -shared -o libpermanent.so permanent.c
 
-# Executables
-EXE_TEST = test_suite
-EXE_BENCH = benchmark
-EXE_A089475 = oeis_a089475
-EXE_A089476 = oeis_a089476
+# --- 2. C Executables ---
 
-# Library output name
-LIB_SHARED = libpermanent.so
+test_suite: test_suite.c permanent.c permanent.h
+	$(CC) $(CFLAGS) -o test_suite test_suite.c permanent.c $(LDFLAGS)
 
-# Phony targets
-.PHONY: all lib run clean
+benchmark: benchmark.c permanent.c permanent.h
+	$(CC) $(CFLAGS) -o benchmark benchmark.c permanent.c $(LDFLAGS)
 
-# Default target
-all: $(EXE_TEST) $(EXE_BENCH) $(EXE_A089475) $(EXE_A089476)
+oeis_nonsingular: oeis_a089475.c permanent.c permanent.h
+	$(CC) $(CFLAGS) -o oeis_a089475 oeis_a089475.c permanent.c $(LDFLAGS)
 
-# Library target
-lib: $(LIB_SHARED)
+oeis_singular: oeis_a089476.c permanent.c permanent.h
+	$(CC) $(CFLAGS) -o oeis_a089476 oeis_a089476.c permanent.c $(LDFLAGS)
 
-# Link the shared library
-$(LIB_SHARED): $(OBJ_LIB)
-	$(CC) -shared -o $(LIB_SHARED) $(OBJ_LIB) -fopenmp
-
-# Compile the library object
-$(OBJ_LIB): $(SRC_LIB) permanent.h
-	$(CC) $(CFLAGS) -c $(SRC_LIB) -o $(OBJ_LIB)
-
-# Executable Rules
-$(EXE_TEST): $(OBJ_LIB) $(SRC_TEST)
-	$(CC) $(CFLAGS) -o $(EXE_TEST) $(OBJ_LIB) $(SRC_TEST) -lm
-
-$(EXE_BENCH): $(OBJ_LIB) $(SRC_BENCH)
-	$(CC) $(CFLAGS) -o $(EXE_BENCH) $(OBJ_LIB) $(SRC_BENCH) -lm
-
-$(EXE_A089475): $(OBJ_LIB) $(SRC_A089475)
-	$(CC) $(CFLAGS) -o $(EXE_A089475) $(OBJ_LIB) $(SRC_A089475) -lm
-
-$(EXE_A089476): $(OBJ_LIB) $(SRC_A089476)
-	$(CC) $(CFLAGS) -o $(EXE_A089476) $(OBJ_LIB) $(SRC_A089476) -lm
-
-# Utility targets
-run: $(EXE_TEST)
-	./$(EXE_TEST)
+# --- 3. Utilities ---
 
 clean:
-	rm -f *.o $(EXE_TEST) $(EXE_BENCH) $(EXE_A089475) $(EXE_A089476) $(LIB_SHARED)
+	rm -f *.so benchmark oeis_a089476 oeis_a089475 test_suite *.o
+
+.PHONY: all lib clean

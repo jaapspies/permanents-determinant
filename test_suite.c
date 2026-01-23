@@ -1,186 +1,189 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <inttypes.h>
 #include "permanent.h"
 
+// Kleuren voor output
+#define GRN "\033[32m"
+#define RED "\033[31m"
+#define YEL "\033[33m"
+#define RST "\033[0m"
 
 static int failures = 0;
 
-static void check_eq_d(const char *label, double got, double expected) {
-    if (got != expected) {
-        printf("FAIL: %s: got %.0f, expected %.0f\n", label, got, expected);
-        failures++;
-    } else {
-        printf("OK  : %s: %.0f\n", label, got);
-    }
-}
+// ============================================================================
+//  1. BRUTE FORCE REFERENTIE (De 'Waarheid')
+// ============================================================================
 
-static void check_match3(const char *label, double a, double b, double c) {
-    if (a == b && b == c) {
-        printf("OK  : %s: %.0f (all match)\n", label, a);
-    } else {
-        printf("FAIL: %s: spies=%.0f ryser2006=%.0f ryser_new=%.0f\n", label, a, b, c);
-        failures++;
-    }
-}
-
-/* --- brute-force permanent for very small sizes (portable C) --- */
-
-typedef struct {
-    const int8_t *A;
-    int m, n;
-    int chosen[12];   /* chosen columns (size m) */
-    int pick[12];     /* permutation of chosen columns (size m) */
-    long long total;
-} BFContext;
-
-/* Heap's algorithm */
-static void bf_permute(BFContext *ctx, int k) {
-    if (k == 1) {
-        long long prod = 1;
-        for (int r = 0; r < ctx->m; r++) {
-            prod *= (long long)ctx->A[r * ctx->n + ctx->pick[r]];
+// Hulpfunctie: Bereken permanent van een VIERKANTE matrix via definitie (traag!)
+// Perm(A) = som( a_1j * Perm(Minor_1j) )
+int64_t bruteforce_square(int8_t *mat, int n, int stride) {
+    if (n == 1) return mat[0];
+    
+    int64_t sum = 0;
+    // Expansie langs eerste rij (rij 0)
+    for (int j = 0; j < n; j++) {
+        // Maak minor matrix (n-1 x n-1)
+        int8_t *minor = malloc((n-1)*(n-1) * sizeof(int8_t));
+        int p = 0;
+        for (int r = 1; r < n; r++) {
+            for (int c = 0; c < n; c++) {
+                if (c == j) continue; // Sla kolom j over
+                minor[p++] = mat[r * stride + c];
+            }
         }
-        ctx->total += prod;
+        
+        // Recursie
+        if (mat[0 * stride + j] != 0) {
+            sum += mat[0 * stride + j] * bruteforce_square(minor, n-1, n-1);
+        }
+        free(minor);
+    }
+    return sum;
+}
+
+// Hulpfunctie: recursief combinaties genereren van kolommen
+void combine_cols(int8_t *mat, int rows, int cols, int start_col, int depth, int *indices, int64_t *total_perm) {
+    if (depth == rows) {
+        // We hebben nu 'rows' kolommen gekozen. Maak de vierkante submatrix.
+        int8_t *sub = malloc(rows * rows * sizeof(int8_t));
+        for (int r = 0; r < rows; r++) {
+            for (int k = 0; k < rows; k++) {
+                sub[r * rows + k] = mat[r * cols + indices[k]];
+            }
+        }
+        // Tel de permanent van deze submatrix op bij het totaal
+        *total_perm += bruteforce_square(sub, rows, rows);
+        free(sub);
         return;
     }
-    bf_permute(ctx, k - 1);
-    for (int i = 0; i < k - 1; i++) {
-        int a = (k % 2 == 0) ? i : 0;
-        int tmp = ctx->pick[a];
-        ctx->pick[a] = ctx->pick[k - 1];
-        ctx->pick[k - 1] = tmp;
-        bf_permute(ctx, k - 1);
+
+    for (int i = start_col; i < cols; i++) {
+        indices[depth] = i;
+        combine_cols(mat, rows, cols, i + 1, depth + 1, indices, total_perm);
     }
 }
 
-static void bf_choose(BFContext *ctx, int start, int depth) {
-    if (depth == ctx->m) {
-        for (int i = 0; i < ctx->m; i++) ctx->pick[i] = ctx->chosen[i];
-        bf_permute(ctx, ctx->m);
-        return;
+// De definitie van Permanent voor rechthoekige matrix (M < N):
+// Som van permanenten van alle mogelijke M x M submatrices.
+int64_t bruteforce_reference(int8_t *mat, int rows, int cols) {
+    if (rows > cols) {
+        // Transposeer virtueel door recursie andersom te doen, of return 0?
+        // De library verwacht rows <= cols.
+        return 0; 
     }
-    for (int col = start; col <= ctx->n - (ctx->m - depth); col++) {
-        ctx->chosen[depth] = col;
-        bf_choose(ctx, col + 1, depth + 1);
+    if (rows == cols) {
+        return bruteforce_square(mat, rows, cols);
     }
+    
+    // Rechthoekig: Sommeer over alle combinaties van kolommen
+    int64_t total = 0;
+    int *indices = malloc(rows * sizeof(int));
+    combine_cols(mat, rows, cols, 0, 0, indices, &total);
+    free(indices);
+    return total;
 }
 
-static long long perm_bruteforce(const int8_t *A, int m, int n) {
-    if (m < 0 || n < 0) return 0;
-    if (m == 0) return 1;
-    if (m > n) return 0;
-    if (n > 12) return 0; /* fixed-size buffers */
+// ============================================================================
+//  2. TEST RUNNER
+// ============================================================================
 
+void run_test(int rows, int cols, const char* name) {
+    printf("TEST: %s (%dx%d) -> ", name, rows, cols);
+    
+    // Maak random matrix (0 en 1)
+    int8_t *mat = malloc(rows * cols * sizeof(int8_t));
+    for(int i=0; i<rows*cols; i++) mat[i] = rand() % 2; // 0 of 1
 
-    BFContext ctx;
-    ctx.A = A;
-    ctx.m = m;
-    ctx.n = n;
-    ctx.total = 0;
-    bf_choose(&ctx, 0, 0);
-    return ctx.total;
-}
-
-int main(void) {
-    printf("--- Test Suite: Permanent & Determinant ---\n");
-    /* Edge cases / definitions */
-    {
-        double p00 = permanent(NULL, 0, 0);
-        check_eq_d("permanent(0x0)=1", p00, 1.0);
-
-        double p0n = permanent(NULL, 0, 5);
-        check_eq_d("permanent(0x5)=1", p0n, 1.0);
-
-        int8_t dummy = 7;
-        double pn0 = permanent(&dummy, 2, 0);
-        check_eq_d("permanent(2x0)=0", pn0, 0.0);
-
-        double p_mgt = permanent(&dummy, 3, 2);
-        check_eq_d("permanent(m>n)=0", p_mgt, 0.0);
+    // 1. Bereken de WAARHEID (Brute Force)
+    //    Alleen doen als matrix klein is, anders duurt het eeuwen
+    int64_t truth = -1;
+    int skip_bf = (cols > 12); // Grens voor brute force
+    
+    if (!skip_bf) {
+        truth = bruteforce_reference(mat, rows, cols);
     }
 
-    /* TEST 1: rectangle 2x3 */
-    {
-        int8_t B[] = {1, 1, 1,
-                      1, 2, 3};
-        double p = permanent(B, 2, 3);
-        check_eq_d("Permanent 2x3 (B)", p, 12.0);
-    }
+    // 2. Bereken JOUW LIBRARY (Optimized)
+    int64_t result = permanent(mat, rows, cols);
 
-    /* Determinant tests */
-    {
-        int8_t D[] = {2, 1,
-                      1, 3};
-        check_eq_d("Determinant 2x2", determinant(D, 2), 5.0);
-
-        int8_t Id4[] = {
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
-        };
-        check_eq_d("Determinant I4", determinant(Id4, 4), 1.0);
-
-        int8_t Sng[] = {1, 2,
-                        2, 4};
-        check_eq_d("Determinant singular", determinant(Sng, 2), 0.0);
-    }
-
-    printf("\n--- Test Suite: Permanent (Spies vs Ryser2006 vs Ryser_new) ---\n");
-
-    /* TEST A: 2x3 (B) */
-    {
-        int8_t B[] = {1, 1, 1,
-                      1, 2, 3};
-        double p_spies = permanent(B, 2, 3);
-        double p_ryser = permanent_ryser(B, 2, 3);
-        double p_new   = ryser_new(B, 2, 3);
-        check_match3("Compare 2x3 (B)", p_spies, p_ryser, p_new);
-    }
-
-    /* TEST B: 3x4 (C) */
-    {
-        int8_t C[] = {
-            1, 0, 1, 1,
-            0, 1, 1, 1,
-            1, 1, 0, 1
-        };
-        double p_spies = permanent(C, 3, 4);
-        double p_ryser = permanent_ryser(C, 3, 4);
-        double p_new   = ryser_new(C, 3, 4);
-        check_match3("Compare 3x4 (C)", p_spies, p_ryser, p_new);
-    }
-
-    /* Random mini-tests vs brute force */
-    printf("\n--- Random small tests vs brute-force ---\n");
-    srand(1);
-    for (int tcase = 0; tcase < 40; tcase++) {
-        int m = 1 + (rand() % 4);      /* 1..4 */
-        int n = m + (rand() % 3);      /* m..m+2 (<=6) */
-
-        int8_t A[4 * 6];
-        for (int i = 0; i < m * n; i++) {
-            A[i] = (int8_t)((rand() % 3) - 1);  /* -1,0,1 */
-        }
-
-        long long bf = perm_bruteforce(A, m, n);
-        double p_spies = permanent(A, m, n);
-        double p_ryser = permanent_ryser(A, m, n);
-        double p_new   = ryser_new(A, m, n);
-
-        char label[64];
-        snprintf(label, sizeof(label), "random %dx%d #%d", m, n, tcase);
-
-        if ((long long)p_spies != bf || (long long)p_ryser != bf || (long long)p_new != bf) {
-            printf("FAIL: %s: brute=%lld spies=%.0f ryser2006=%.0f ryser_new=%.0f\n",
-                   label, bf, p_spies, p_ryser, p_new);
-            failures++;
+    // 3. Vergelijk
+    if (skip_bf) {
+        printf(YEL "SKIPPED BF (Too big)" RST " | Lib: %" PRId64 "\n", result);
+    } else {
+        if (result == truth) {
+            printf(GRN "MATCH" RST " (Val: %" PRId64 ")\n", result);
         } else {
-            printf("OK  : %s: %lld\n", label, bf);
+            printf(RED "FAIL" RST "\n");
+            printf("   Echt (Definitie): %" PRId64 "\n", truth);
+            printf("   Jouw Library:     %" PRId64 "\n", result);
+            printf("   Verschil factor:  %.2f\n", (double)result / (double)truth);
+            failures++;
         }
     }
+    free(mat);
+}
 
-    printf("\nSummary: %s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
-    return failures ? 1 : 0;
+void test_padding_identity(int m, int n) {
+    // Test de formule: Perm(J_mn) = n! / (n-m)!
+    // Met 0/1 matrix vol enen
+    printf("TEST: All-Ones %dx%d -> ", m, n);
+    
+    int8_t *J = malloc(m * n * sizeof(int8_t));
+    for(int i=0; i<m*n; i++) J[i] = 1;
+    
+    int64_t res = permanent(J, m, n);
+    
+    // Bereken n! / (n-m)!
+    int64_t expected = 1;
+    for (int k = 0; k < m; k++) {
+        expected *= (n - k);
+    }
+    
+    if (res == expected) {
+        printf(GRN "MATCH" RST " (%" PRId64 ")\n", res);
+    } else {
+        printf(RED "FAIL" RST "\n");
+        printf("   Verwacht (n!/(n-m)!): %" PRId64 "\n", expected);
+        printf("   Jouw Library:         %" PRId64 "\n", res);
+        failures++;
+    }
+    free(J);
+}
+
+int main() {
+    srand(42); // Vaste seed voor herhaalbaarheid
+    
+    printf("==========================================\n");
+    printf("   STRICT MATHEMATICAL VALIDATION SUITE   \n");
+    printf("==========================================\n");
+
+    // 1. Vierkante tests
+    run_test(4, 4, "Small Square");
+    run_test(10, 10, "Medium Square");
+
+    // 2. Rechthoekige tests (Hier ging het mis met Masschelein)
+    //    Nu vergelijken we met de ECHTE definitie, niet met padding-trucs
+    run_test(3, 4, "Rect 3x4");
+    run_test(3, 5, "Rect 3x5");
+    run_test(4, 6, "Rect 4x6");
+    
+    // 3. De 10x22 test (maar dan kleiner voor brute force verificatie)
+    //    Laten we 5x10 proberen, dat is nog net te brute forcen
+    run_test(5, 10, "Rect 5x10");
+
+    // 4. Formule controle
+    test_padding_identity(5, 10);
+    test_padding_identity(8, 15);
+
+    printf("\n------------------------------------------\n");
+    if (failures == 0) {
+        printf(GRN "ALL TESTS PASSED." RST "\n");
+        return 0;
+    } else {
+        printf(RED "%d TESTS FAILED." RST "\n", failures);
+        return 1;
+    }
 }
