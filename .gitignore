@@ -15,7 +15,6 @@ __pycache__/
 *.pyc
 
 # Temporary source files
-benchmark.c
 test_bug.c
 
 # Editor backups
