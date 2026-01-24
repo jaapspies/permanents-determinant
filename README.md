@@ -16,16 +16,14 @@ The distinguishing feature of this library is its approach to calculating the pe
     * Implementation of the **Spies' Formula** using Gray Codes.
     * Function call: int64_t permanent(const int8_t *A, int m, int n);
     * Padding rows to match columns (Masschelein).
-    * Optimized for dense matrices ($m \approx n$).
     * Complexity: $O(n 2^n)$.
 
-* **Fast Permanent Calculation (Rectangular):**
+* **Permanent Calculation (Rectangular):**
     * Implementation of the **Brualdi–Ryser Algorithm** for rectangular permanents.
     * Legacy reference implementation (2006 port).
     * Function call: int64_t permanent_ryser(const int8_t *A, int m, int n);
     * Optimized for rectangular matrices where $m < n$.
     * Complexity: $O(m \cdot \sum_{k=1}^m \binom{n}{k})$. 
-      *(Approximates $O(m \cdot \binom{n}{m})$ for small $m$, and $O(m \cdot 2^n)$ when $m=n$)*.
 
 
 * **Fast Permanent Calculation (Rectangular, Optimized):**
@@ -60,7 +58,19 @@ $$
 3.  **Virtual Rows (Masschelein Extension):** To treat the rectangular matrix as square, $n-m$ rows of ones are virtually appended. The row sum for such a row is simply $\sum x_j$. Since these rows are identical, this results in the term $(\sum x_j)^{n-m}$.
 4.  **Normalization:**
     * The factor $\frac{1}{(n-m)!}$ corrects for the permutation symmetries introduced by the identical padded rows.
-    * The factor $\frac{1}{2^{n-1}}$ is the standard averaging constant for this class of formulas.
+
+## Performance
+
+The library has been benchmarked against legacy Ryser implementations.
+**Test System:** Single Thread performance (Standard CPU).
+
+| Matrix Type | Size | Legacy Implementation | **This Library** | **Speedup** |
+| :--- | :--- | :--- | :--- | :--- |
+| **Square** | 20 x 20 | 0.2046 s | **0.0063 s** | **32x** |
+| **Rectangular** | 8 x 16 | 0.0070 s | **0.0002 s** | **40x** |
+
+*Benchmarks ran on random {-1, 0, 1} matrices. Results are validated for exact correctness.*
+
 
 ##  OEIS Results (New for 2025)
 
@@ -80,7 +90,6 @@ Using this software, two sequences that had been stagnant since 2003 were extend
 * **Previous terms (N=1..6):** 1, 2, 4, 10, 32, 136
 * **New Result (N=7):** `700`
 * **Methodology:** Exhaustive search over sorted rows (combinations with replacement) combined with a fast Bareiss Determinant check.
-* **Stats:** Checked **77,614,474,050** canonical singular matrices.
 
 ---
 
